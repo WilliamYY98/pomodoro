@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>番茄钟</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    display: flex; justify-content: center; align-items: center;
+    min-height: 100vh; background: #1a1a2e; font-family: system-ui, sans-serif;
+    color: #eee;
+  }
+  .container { text-align: center; }
+  h1 { font-size: 1.6rem; margin-bottom: 30px; color: #e94560; letter-spacing: 2px; }
+
+  .timer-ring {
+    position: relative; width: 280px; height: 280px; margin: 0 auto 30px;
+  }
+  .timer-ring svg { transform: rotate(-90deg); }
+  .ring-bg { fill: none; stroke: #16213e; stroke-width: 10; }
+  .ring-fg { fill: none; stroke: #e94560; stroke-width: 10; stroke-linecap: round;
+    transition: stroke-dashoffset 0.3s linear; }
+  .time-display {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+  }
+  .time-display .time {
+    font-size: 3.5rem; font-weight: 700; font-variant-numeric: tabular-nums;
+    letter-spacing: 3px;
+  }
+  .time-display .label {
+    font-size: 0.85rem; color: #888; margin-top: 4px;
+  }
+
+  .time-input-area {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    margin-bottom: 24px;
+  }
+  .time-input-area input {
+    width: 70px; padding: 8px 10px; border: 2px solid #333; border-radius: 8px;
+    background: #16213e; color: #eee; font-size: 1.2rem; text-align: center;
+    outline: none; transition: border-color 0.2s;
+  }
+  .time-input-area input:focus { border-color: #e94560; }
+  .time-input-area span { font-size: 1rem; color: #888; }
+
+  .buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  button {
+    padding: 12px 28px; border: none; border-radius: 8px; font-size: 1rem;
+    cursor: pointer; transition: all 0.2s; letter-spacing: 1px;
+  }
+  .btn-start { background: #e94560; color: #fff; }
+  .btn-start:hover { background: #c73a52; }
+  .btn-pause { background: #f0a500; color: #1a1a2e; }
+  .btn-pause:hover { background: #d49100; }
+  .btn-reset { background: #333; color: #eee; }
+  .btn-reset:hover { background: #444; }
+
+  .status { margin-top: 20px; font-size: 0.9rem; color: #666; min-height: 24px; }
+  .status.overtime { color: #e94560; animation: blink 0.6s ease-in-out infinite; }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; } 50% { opacity: 0.3; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>番茄钟</h1>
+
+  <div class="timer-ring">
+    <svg width="280" height="280" viewBox="0 0 280 280">
+      <circle class="ring-bg" cx="140" cy="140" r="125"/>
+      <circle class="ring-fg" cx="140" cy="140" r="125"
+        stroke-dasharray="785" stroke-dashoffset="0"/>
+    </svg>
+    <div class="time-display">
+      <div class="time" id="display">25:00</div>
+      <div class="label" id="phaseLabel">设定时间</div>
+    </div>
+  </div>
+
+  <div class="time-input-area">
+    <input type="number" id="minutesInput" value="25" min="1" max="120" aria-label="分钟">
+    <span>分钟</span>
+  </div>
+
+  <div class="buttons">
+    <button class="btn-start" id="btnStart">开始</button>
+    <button class="btn-pause" id="btnPause" style="display:none;">暂停</button>
+    <button class="btn-reset" id="btnReset">重置</button>
+  </div>
+
+  <div class="status" id="status"></div>
+</div>
+
+<script>
+  const CIRCUMFERENCE = 2 * Math.PI * 125; // ~785
+  const ringFg = document.querySelector('.ring-fg');
+  const display = document.getElementById('display');
+  const phaseLabel = document.getElementById('phaseLabel');
+  const statusEl = document.getElementById('status');
+  const minutesInput = document.getElementById('minutesInput');
+  const btnStart = document.getElementById('btnStart');
+  const btnPause = document.getElementById('btnPause');
+  const btnReset = document.getElementById('btnReset');
+
+  let totalSeconds = 25 * 60;
+  let remaining = totalSeconds;
+  let timer = null;
+  let audioCtx = null;
+
+  ringFg.style.strokeDasharray = CIRCUMFERENCE;
+  ringFg.style.strokeDashoffset = '0';
+
+  function formatTime(s) {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+  }
+
+  function updateDisplay() {
+    display.textContent = formatTime(remaining);
+    const fraction = remaining / totalSeconds;
+    ringFg.style.strokeDashoffset = CIRCUMFERENCE * (1 - fraction);
+
+    if (remaining <= 0) {
+      ringFg.style.stroke = '#e94560';
+    } else {
+      ringFg.style.stroke = '#e94560';
+    }
+  }
+
+  function beep() {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.type = 'sine'; osc.frequency.value = 800;
+      gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+      osc.start(audioCtx.currentTime);
+      osc.stop(audioCtx.currentTime + 0.3);
+    } catch (_) {}
+  }
+
+  function notify() {
+    beep();
+    statusEl.textContent = '⏰ 时间到！';
+    statusEl.className = 'status overtime';
+    phaseLabel.textContent = '已结束';
+    document.title = '⏰ 时间到！';
+  }
+
+  function tick() {
+    if (remaining <= 0) {
+      clearInterval(timer);
+      timer = null;
+      updateDisplay();
+      notify();
+      btnStart.style.display = 'inline-block';
+      btnStart.textContent = '开始';
+      btnPause.style.display = 'none';
+      return;
+    }
+    remaining--;
+    updateDisplay();
+  }
+
+  function start() {
+    if (timer) return;
+    if (remaining <= 0) return;
+    totalSeconds = Math.round(remaining / totalSeconds) * totalSeconds || remaining;
+    // recalc fraction based on actual remaining
+    const actualTotal = remaining > totalSeconds ? remaining : totalSeconds;
+    timer = setInterval(tick, 1000);
+    btnStart.style.display = 'none';
+    btnPause.style.display = 'inline-block';
+    statusEl.textContent = '运行中…';
+    statusEl.className = 'status';
+    document.title = `${formatTime(remaining)} - 番茄钟`;
+  }
+
+  function pause() {
+    clearInterval(timer);
+    timer = null;
+    btnStart.style.display = 'inline-block';
+    btnStart.textContent = '继续';
+    btnPause.style.display = 'none';
+    statusEl.textContent = '已暂停';
+    statusEl.className = 'status';
+  }
+
+  function reset() {
+    clearInterval(timer);
+    timer = null;
+    totalSeconds = parseInt(minutesInput.value, 10) * 60 || 25 * 60;
+    remaining = totalSeconds;
+    updateDisplay();
+    btnStart.style.display = 'inline-block';
+    btnStart.textContent = '开始';
+    btnPause.style.display = 'none';
+    statusEl.textContent = '';
+    statusEl.className = 'status';
+    phaseLabel.textContent = '设定时间';
+    document.title = '番茄钟';
+  }
+
+  btnStart.addEventListener('click', start);
+  btnPause.addEventListener('click', pause);
+  btnReset.addEventListener('click', reset);
+
+  minutesInput.addEventListener('change', () => {
+    let v = parseInt(minutesInput.value, 10);
+    if (isNaN(v) || v < 1) v = 1;
+    if (v > 120) v = 120;
+    minutesInput.value = v;
+    if (!timer) {
+      totalSeconds = v * 60;
+      remaining = totalSeconds;
+      updateDisplay();
+    }
+  });
+
+  updateDisplay();
+</script>
+</body>
+</html>
