@@ -9,8 +9,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="番茄钟">
 <link rel="manifest" href="manifest.json">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍅</text></svg>">
-<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%231a1a2e'/><text y='.85em' font-size='80' x='50' text-anchor='middle'>🍅</text></svg>">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -63,6 +63,8 @@
   .btn-pause:hover { background: #d49100; }
   .btn-reset { background: #333; color: #eee; }
   .btn-reset:hover { background: #444; }
+  .btn-install { background: #0f3460; color: #eee; border: 2px solid #e94560; }
+  .btn-install:hover { background: #1a4a7a; }
 
   .status { margin-top: 20px; font-size: 0.9rem; color: #666; min-height: 24px; }
   .status.overtime { color: #e94560; animation: blink 0.6s ease-in-out infinite; }
@@ -97,6 +99,7 @@
     <button class="btn-start" id="btnStart">开始</button>
     <button class="btn-pause" id="btnPause" style="display:none;">暂停</button>
     <button class="btn-reset" id="btnReset">重置</button>
+    <button class="btn-install" id="btnInstall" style="display:none;">安装App</button>
   </div>
 
   <div class="status" id="status"></div>
@@ -238,10 +241,30 @@
     navigator.serviceWorker.register('sw.js');
   }
 
-  // detect standalone mode
-  if (window.matchMedia('(display-mode: standalone)').matches) {
-    document.body.classList.add('standalone');
-  }
+  // custom install button
+  let deferredPrompt;
+  const btnInstall = document.getElementById('btnInstall');
+
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    deferredPrompt = e;
+    btnInstall.style.display = 'inline-block';
+  });
+
+  btnInstall.addEventListener('click', async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      btnInstall.style.display = 'none';
+    }
+    deferredPrompt = null;
+  });
+
+  window.addEventListener('appinstalled', () => {
+    btnInstall.style.display = 'none';
+    deferredPrompt = null;
+  });
 </script>
 </body>
 </html>

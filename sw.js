@@ -1,5 +1,5 @@
-const CACHE = 'pomodoro-v1';
-const FILES = ['./pomodoro.html', './manifest.json'];
+const CACHE = 'pomodoro-v2';
+const FILES = ['./pomodoro.html', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)));
